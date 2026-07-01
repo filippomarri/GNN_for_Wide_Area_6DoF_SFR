@@ -3,6 +3,11 @@ clearvars;
 close all;
 clc;
 
+% HERE IS WHERE YOU CAN SELECT THE SOURCES!
+SOURCE_NAME_1 = 'S1'; % Source (S0, S1, S2, S3, S4)
+SOURCE_NAME_2 = 'S4'; % Source (S0, S1, S2, S3, S4)
+
+
 %% Parameters Configuration
 CFG = struct();
 
@@ -32,10 +37,6 @@ QUERY_NODES = {
     'A206';
     'A311'
 };
-
-% You can choose the source
-SOURCE_NAME_1 = 'S1'; % Source (S0, S1, S2, S3, S4)
-SOURCE_NAME_2 = 'S4'; % Source (S0, S1, S2, S3, S4)
 
 %% Model loading
 if ~exist(CFG.MODEL_PATH, 'file')

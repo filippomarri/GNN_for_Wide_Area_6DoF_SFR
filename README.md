@@ -5,5 +5,5 @@ Sound Field Reconstruction is one of the fundamental problems in acoustic engine
 
 
 ## Instructions
-In order to run the example, just download the folder and run the Matlab script "main.m". In the image below, the setting for receivers and SMAs reported in the example is shown.
+In order to run the example, just download the folder and run the Matlab script "main.m". In the image below, the setting for receivers and SMAs reported in the example is shown. It is possible to select up to two sources according to your preference by writing SO, S1, S2, S3 or S4 next to SOURCE_NAME_1 and SOURCE_NAME_2 at the beginning of the code.
 <img src="Deliveries/Setting.png" width="1000">
