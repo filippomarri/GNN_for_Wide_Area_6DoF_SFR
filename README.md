@@ -6,4 +6,4 @@ Sound Field Reconstruction is one of the fundamental problems in acoustic engine
 
 ## Instructions
 In order to run the example, just download the folder and run the Matlab script "main.m"
-<img src="Deliveries/Setting.png" width="700">
+<img src="Deliveries/Setting.png" width="1000">
