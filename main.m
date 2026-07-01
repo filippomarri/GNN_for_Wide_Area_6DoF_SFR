@@ -5,9 +5,16 @@ clc;
 
 % HERE IS WHERE YOU CAN SELECT THE SOURCES!
 SOURCE_NAME_1 = 'S1'; % Source (S0, S1, S2, S3, S4)
-SOURCE_NAME_2 = 'S4'; % Source (S0, S1, S2, S3, S4)
+SOURCE_NAME_2 = 'S4'; % Source (S0, S1, S2, S3, S4, 0 if you want just a single source).
 
+% Check
+if ~any(strcmpi(SOURCE_NAME_1, {'S0', 'S1', 'S2', 'S3', 'S4'}))
+    error('Wrong selection for SOURCE_NAME_1 ("%s"). Possible valid values are: S0, S1, S2, S3, S4.', SOURCE_NAME_1);
+end
 
+if ~any(strcmpi(SOURCE_NAME_2, {'S0', 'S1', 'S2', 'S3', 'S4', '0'}))
+    error('Wrong selection for SOURCE_NAME_2 ("%s")). Possible valid values are: S0, S1, S2, S3, S4, or "0".', SOURCE_NAME_2);
+end
 %% Parameters Configuration
 CFG = struct();
 
@@ -57,7 +64,6 @@ for k = 1:numel(train_fields)
 end
 
 %% Dry Signals loading
-
 % Dry Signal 1
 if ~exist(CFG.DRY_SIG_1, 'file'), error('File mancante: %s', CFG.DRY_SIG_1); end
 [drySig1, fsDry1] = audioread(CFG.DRY_SIG_1);
@@ -65,26 +71,35 @@ if size(drySig1, 2) > 1, drySig1 = mean(drySig1, 2); end
 drySig1 = drySig1(:);
 if fsDry1 ~= CFG.FS, drySig1 = resample(drySig1, CFG.FS, fsDry1); drySig1 = drySig1(:); end
 
-% Dry Signal 2
-if ~exist(CFG.DRY_SIG_2, 'file'), error('File mancante: %s', CFG.DRY_SIG_2); end
-[drySig2, fsDry2] = audioread(CFG.DRY_SIG_2);
-if size(drySig2, 2) > 1, drySig2 = mean(drySig2, 2); end
-drySig2 = drySig2(:);
-if fsDry2 ~= CFG.FS, drySig2 = resample(drySig2, CFG.FS, fsDry2); drySig2 = drySig2(:); end
-
 % No longer than 30 seconds
 max_samples = 30 * CFG.FS;
 if length(drySig1) > max_samples, drySig1 = drySig1(1:max_samples); end
-if length(drySig2) > max_samples, drySig2 = drySig2(1:max_samples); end
-
 lenD1 = length(drySig1);
-lenD2 = length(drySig2);
-maxD = max(lenD1, lenD2);
-drySig1 = [drySig1; zeros(maxD - lenD1, 1)];
-drySig2 = [drySig2; zeros(maxD - lenD2, 1)];
 
+% Dry Signal 2
+if ~strcmpi(string(SOURCE_NAME_2), "0")
+    if ~exist(CFG.DRY_SIG_2, 'file'), error('File mancante: %s', CFG.DRY_SIG_2); end
+    [drySig2, fsDry2] = audioread(CFG.DRY_SIG_2);
+    if size(drySig2, 2) > 1, drySig2 = mean(drySig2, 2); end
+    drySig2 = drySig2(:);
+    if fsDry2 ~= CFG.FS, drySig2 = resample(drySig2, CFG.FS, fsDry2); drySig2 = drySig2(:); end
+    
+    if length(drySig2) > max_samples, drySig2 = drySig2(1:max_samples); end
+    lenD2 = length(drySig2);
+else
+    lenD2 = 0; 
+end
+
+maxD = max(lenD1, lenD2);
+
+% Zero-padding e normalizzazione
+drySig1 = [drySig1; zeros(maxD - lenD1, 1)];
 drySig1 = drySig1 / (max(abs(drySig1)) + 1e-12);
-drySig2 = drySig2 / (max(abs(drySig2)) + 1e-12);
+
+if ~strcmpi(string(SOURCE_NAME_2), "0")
+    drySig2 = [drySig2; zeros(maxD - lenD2, 1)];
+    drySig2 = drySig2 / (max(abs(drySig2)) + 1e-12);
+end
 
 %% Arvedi signals loading
 all_nodes = [KNOWN_NODES; QUERY_NODES];
@@ -92,7 +107,6 @@ N_tot = size(all_nodes, 1);
 M = size(KNOWN_NODES, 1);
 Q = size(QUERY_NODES, 1);
 
-% Usiamo due celle separate per le RIR in FOA
 foa_rirs_1 = cell(N_tot, 1);
 foa_rirs_2 = cell(N_tot, 1);
 mic_centers = zeros(N_tot, 3);
@@ -117,9 +131,11 @@ for i = 1:N_tot
     foa_rirs_1{i} = resample(encode_raw_to_foa(raw_rir_1, cap_pos), CFG.FS, 48000);
     
     % RIR Source 2
-    rir_path_2 = fullfile(CFG.ARVEDI_BASE_DIR, sprintf('rirs/rir-%s-%s.wav', SOURCE_NAME_2, hom_id));
-    raw_rir_2 = audioread(rir_path_2);
-    foa_rirs_2{i} = resample(encode_raw_to_foa(raw_rir_2, cap_pos), CFG.FS, 48000);
+    if ~strcmpi(string(SOURCE_NAME_2), "0")
+        rir_path_2 = fullfile(CFG.ARVEDI_BASE_DIR, sprintf('rirs/rir-%s-%s.wav', SOURCE_NAME_2, hom_id));
+        raw_rir_2 = audioread(rir_path_2);
+        foa_rirs_2{i} = resample(encode_raw_to_foa(raw_rir_2, cap_pos), CFG.FS, 48000);
+    end
 end
 
 mic_pos_known = mic_centers(1:M, :);
@@ -127,7 +143,12 @@ mic_pos_query = mic_centers(M+1:end, :);
 
 %% Convolution and FOA Preparation
 lenR1 = size(foa_rirs_1{1}, 1);
-lenR2 = size(foa_rirs_2{1}, 1);
+if ~strcmpi(string(SOURCE_NAME_2), "0")
+    lenR2 = size(foa_rirs_2{1}, 1);
+else
+    lenR2 = 0;
+end
+
 out_len = max(maxD + lenR1 - 1, maxD + lenR2 - 1);
 
 rec_known = zeros(out_len, 4, M, 'single');
@@ -138,22 +159,26 @@ for i = 1:M
     for c = 1:4
         % Zero padding for the reverberant tail
         conv1 = single(fftfilt(foa_rirs_1{i}(:,c), [drySig1; zeros(lenR1-1, 1)]));
-        conv2 = single(fftfilt(foa_rirs_2{i}(:,c), [drySig2; zeros(lenR2-1, 1)]));
         
-        % Final Mix
         rec_known(1:length(conv1), c, i) = rec_known(1:length(conv1), c, i) + conv1;
-        rec_known(1:length(conv2), c, i) = rec_known(1:length(conv2), c, i) + conv2;
+        
+        if ~strcmpi(string(SOURCE_NAME_2), "0")
+            conv2 = single(fftfilt(foa_rirs_2{i}(:,c), [drySig2; zeros(lenR2-1, 1)]));
+            rec_known(1:length(conv2), c, i) = rec_known(1:length(conv2), c, i) + conv2;
+        end
     end
 end
 
-% Convoluton and mix for gt
+% Convolution and mix for gt
 for i = 1:Q
     for c = 1:4
         conv1 = single(fftfilt(foa_rirs_1{M+i}(:,c), [drySig1; zeros(lenR1-1, 1)]));
-        conv2 = single(fftfilt(foa_rirs_2{M+i}(:,c), [drySig2; zeros(lenR2-1, 1)]));
-        
         rec_query(1:length(conv1), c, i) = rec_query(1:length(conv1), c, i) + conv1;
-        rec_query(1:length(conv2), c, i) = rec_query(1:length(conv2), c, i) + conv2;
+        
+        if ~strcmpi(string(SOURCE_NAME_2), "0")
+            conv2 = single(fftfilt(foa_rirs_2{M+i}(:,c), [drySig2; zeros(lenR2-1, 1)]));
+            rec_query(1:length(conv2), c, i) = rec_query(1:length(conv2), c, i) + conv2;
+        end
     end
 end
 
